@@ -1,0 +1,13 @@
+/* Extensions for the new tabs/tables only. Original Music stylesheet is retained. */
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0f1218;--panel:#171b25;--panel-2:#1f2430;--texto:#eceef4;--tenue:#9aa3b8;--borde:#2b3142;--acento:#70B77E;--acento-texto:#1a1204;--sombra:0 6px 18px rgba(0,0,0,.35)}
+:root[data-theme="light"]{color-scheme:light;--bg:#f6f5f1;--panel:#ffffff;--panel-2:#efede6;--texto:#1d2030;--tenue:#5d6478;--borde:#dedbd0;--acento:#237A43;--acento-texto:#ffffff;--sombra:0 6px 18px rgba(40,30,10,.12)}
+.hero{position:relative}.theme-home{position:absolute;top:22px;right:28px;color:var(--tenue);font-size:.84rem}
+.tabs{flex-wrap:wrap}.tarjeta-g{min-width:0}.tarjeta-g+.tarjeta-g{margin-top:20px}.rejilla-2>.tarjeta-g{margin-top:0}
+.table-wrap{overflow-x:auto;max-width:100%}table{border-collapse:collapse;width:100%;font-size:.86rem}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--borde);vertical-align:top}th{font-weight:600;color:var(--tenue)}td.num{text-align:right;font-variant-numeric:tabular-nums}
+.metricas{display:flex;flex-wrap:wrap;gap:16px 28px;margin:16px 0}.metrica{font-size:.82rem;color:var(--tenue)}.metrica strong{display:block;font-size:1.5rem;color:var(--texto)}
+.warning{border-left:3px solid var(--acento);padding:10px 14px;background:var(--panel-2);font-size:.86rem;margin:0 0 20px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.long-row{padding:12px 0;border-bottom:1px solid var(--borde)}.long-title{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;font-size:.86rem;margin-bottom:8px}.stack{height:30px;border-radius:6px;overflow:hidden;display:flex;background:var(--panel-2)}.stack span{min-width:0;display:block}.stack span:focus-visible{outline-offset:-3px}.stack-legend{display:flex;gap:10px 16px;flex-wrap:wrap;margin-top:16px;color:var(--tenue);font-size:.82rem}.stack-legend .punto{vertical-align:middle;margin-right:4px}
+.line-chart{display:block;width:100%;height:auto;max-height:340px}.line-chart text{fill:var(--tenue);font-size:12px}.line-chart .axis{stroke:var(--borde)}
+.metodo{max-width:1000px;margin:auto}.metodo p,.metodo li{max-width:90ch}.metodo h2{margin-top:28px;font-size:1.2rem}.table-note{font-size:.82rem;color:var(--tenue);margin:12px 0 0}
+button:disabled{opacity:.55;cursor:default}.tab:focus-visible{outline-offset:3px}
+@media(max-width:600px){.tabs{gap:5px}.tab{padding:7px 10px}.grupo-ctrl{width:100%}.controles{gap:12px}.fila-barra{grid-template-columns:minmax(100px,45%) 1fr 54px;gap:6px}.tarjeta-g{padding:14px}th,td{padding:8px}.long-title{display:block}.long-title span{display:block;margin-top:4px}}

@@ -1,0 +1,19 @@
+# Public allowlist is enforced by deployment verification as well as ignores.
+*.xlsx
+*.xls
+*.csv
+*.tsv
+*.parquet
+*.zip
+*.log
+*.png
+*.pyc
+__pycache__/
+.venv/
+node_modules/
+private/
+sources/
+.env*
+.codex/
+.agents/
+.openai/
