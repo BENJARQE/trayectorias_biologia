@@ -8,14 +8,14 @@ from collections import Counter,defaultdict
 from statistics import mean,median
 from itertools import product
 from datetime import date
-import argparse,json,re,unicodedata,hashlib,math,csv
+import argparse,json,re,unicodedata,hashlib,math,csv,colorsys
 from openpyxl import load_workbook
 
-K=5
+K=2
 COHORTS=['todas','2017–2019','2020–2021','2022–2023','2024–2025','2026 provisional']
 UNKNOWN='No determinado'
-# Original Music chart palettes, including its orange chart series, are retained.
-PALETTE=[['#2563eb','#5b8dfa'],['#0f9d74','#2cc79a'],['#c026d3','#e167f0'],['#ea580c','#fb8a4a'],['#b45309','#e0a03a'],['#64748b','#94a3b8'],['#9ca3af','#6b7280']]
+PROFESSIONAL_AREAS=['Conservación y ecología','Biotecnología y laboratorio','Bioinformática y análisis de datos','Educación y divulgación científica','Otros']
+GROUPED={'employer_name':'Otros empleadores agrupados','title_normalized':'Otros cargos agrupados'}
 
 def sin_tildes(s):
  return ''.join(c for c in unicodedata.normalize('NFD',str(s)) if unicodedata.category(c)!='Mn')
@@ -32,7 +32,68 @@ def tab(rows,headers=None):
  headers=headers or list(dict.fromkeys(k for r in rows for k in r));return {'headers':headers,'rows':[[r.get(h) for h in headers] for r in rows]}
 def excel(path,sheet):
  w=load_workbook(path,read_only=True,data_only=True);ws=w[sheet] if isinstance(sheet,str) else w.worksheets[sheet];ws.reset_dimensions();it=iter(ws.values);h=next(it);rs=[dict(zip(h,r)) for r in it if any(v is not None for v in r)];w.close();return rs
-def rounded(n,step=5):return int(math.floor(n/step+0.5)*step)
+TITLE_ALIASES={
+ 'biologa':'Biólogo','biologo':'Biólogo','biologist':'Biólogo',
+ 'research assistant':'Asistente de investigación','asistente de investigacion':'Asistente de investigación',
+ 'young researcher':'Joven investigador','joven investigador':'Joven investigador','joven investigadora':'Joven investigador',
+ 'researcher':'Investigador','investigadora':'Investigador','investigador':'Investigador',
+ 'scientific researcher':'Investigador científico','research scientist':'Investigador científico',
+ 'junior researcher':'Investigador junior','investigador junior':'Investigador junior',
+ 'associate researcher':'Investigador asociado','investigadora asociada':'Investigador asociado',
+ 'visiting researcher':'Investigador visitante','visiting research scientist':'Investigador científico visitante',
+ 'doctoral student':'Estudiante de doctorado','phd student':'Estudiante de doctorado','estudiante de doctorado':'Estudiante de doctorado',
+ 'masters student':'Estudiante de maestría','research master student':'Estudiante de maestría','estudiante de master cientifico':'Estudiante de maestría',
+ 'teaching assistant':'Asistente de docencia','graduate research and teaching assistant':'Asistente de investigación y docencia de posgrado',
+ 'graduate research assistant':'Asistente de investigación de posgrado','student assistant':'Asistente estudiantil',
+ 'research intern':'Practicante de investigación','intern':'Practicante','internship trainee':'Practicante','student intern':'Practicante','pasante':'Practicante',
+ 'summer intern':'Practicante de verano','laboratory assistant':'Asistente de laboratorio',
+ 'data scientist':'Científico de datos','cientifico de datos':'Científico de datos','cientifica de datos':'Científico de datos',
+ 'data analyst':'Analista de datos','analista de datos':'Analista de datos','data engineer':'Ingeniero de datos','ingeniero de datos':'Ingeniero de datos',
+ 'bioinformatician':'Bioinformático','bioinformatician junior':'Bioinformático junior','bioinformatics engineer':'Ingeniero bioinformático',
+ 'wildlife biologist':'Biólogo de vida silvestre','biologo de vida silvestre':'Biólogo de vida silvestre',
+ 'project manager':'Administrador de proyectos','customer care':'Servicio de atención al cliente',
+ 'university lecturer':'Profesor universitario','profesor universitario':'Profesor universitario',
+ 'docencia':'Docente','docente':'Docente','maestro':'Maestro','maestra':'Maestro',
+ 'biologa investigadora':'Biólogo investigador','biologo investigador':'Biólogo investigador',
+ 'profesional ambiental':'Profesional ambiental','analista tecnico':'Analista técnico',
+ 'mastozoóloga':'Mastozoólogo','masto zoologa':'Mastozoólogo','mastozoóloga':'Mastozoólogo',
+}
+def normalize_title(value):
+ text=clean(value);key=token(text)
+ if key in TITLE_ALIASES:return TITLE_ALIASES[key]
+ if key=='mastozoologa' or key=='mastozoóloga' or key=='masto zoologa':return 'Mastozoólogo'
+ # Gender variants only; preserve specialisms, seniority and composite roles.
+ for feminine,masculine in [('bióloga','Biólogo'),('investigadora','investigador'),('consultora','consultor'),('coordinadora','coordinador'),('administradora','administrador'),('mentora','mentor'),('ingeniera','ingeniero'),('científica','científico'),('educadora','educador'),('profesora','profesor'),('técnica','técnico'),('directora','director')]:
+  text=re.sub(r'\b'+feminine+r'\b',masculine,text,flags=re.I)
+ return text
+
+def categorical_colors(labels,previous=None,priority=None,neighbors=None):
+ """Append-only registry maximizing distance among labels sharing a chart."""
+ def rgb(h,s,l):return tuple(round(255*v) for v in colorsys.hls_to_rgb(h/360,l,s))
+ def hx(c):return '#'+''.join(f'{v:02x}' for v in c)
+ def lab(c):
+  v=[x/255 for x in c];v=[x/12.92 if x<=.04045 else ((x+.055)/1.055)**2.4 for x in v]
+  xyz=[sum(a*b for a,b in zip(v,row))/ref for row,ref in [([.4124,.3576,.1805],.95047),([.2126,.7152,.0722],1),([.0193,.1192,.9505],1.08883)]]
+  f=[x**(1/3) if x>.008856 else 7.787*x+16/116 for x in xyz];return [116*f[1]-16,500*(f[0]-f[1]),200*(f[1]-f[2])]
+ def decode(s):return tuple(int(s[i:i+2],16) for i in [1,3,5])
+ palette={k:v for k,v in (previous or {}).items() if k in labels};assigned={k:(lab(decode(v[0])),lab(decode(v[1]))) for k,v in palette.items()};used=list(assigned.values());neighbors=neighbors or {}
+ candidates=[]
+ for h,s,l in product(range(0,360,6),[.60,.78,.94],[.34,.42,.50,.58]):
+  pair=[hx(rgb(h,s,l)),hx(rgb(h,s,min(l+.20,.80)))];labs=(lab(decode(pair[0])),lab(decode(pair[1])))
+  if pair not in palette.values():candidates.append([pair,labs,float('inf')])
+ def distance(a,b):return min(sum((x-y)**2 for x,y in zip(a[i],b[i])) for i in [0,1])
+ for c in candidates:
+  if used:c[2]=min(distance(c[1],u) for u in used)
+ order=list(dict.fromkeys([label for label in (priority or []) if label in labels]+sorted(labels,key=lambda label:(-len(neighbors.get(label,set())),label))))
+ for label in [label for label in order if label not in palette]:
+  light_used={v[0] for v in palette.values()};dark_used={v[1] for v in palette.values()}
+  candidates=[c for c in candidates if c[0][0] not in light_used and c[0][1] not in dark_used]
+  peers=[assigned[k] for k in neighbors.get(label,set()) if k in assigned]
+  if peers:chosen=max(candidates,key=lambda c:(min(distance(c[1],peer) for peer in peers),c[2]))
+  else:chosen=min(candidates,key=lambda c:sum((x-y)**2 for x,y in zip(c[1][0],lab((37,99,235)))))
+  palette[label]=chosen[0];assigned[label]=chosen[1];used.append(chosen[1]);candidates.remove(chosen)
+  for c in candidates:c[2]=min(c[2],distance(c[1],chosen[1]))
+ return palette
 def size_of(a,b):
  """A numeric cell labelled published is not sufficient: inspect its evidence and scope."""
  if token(a['Empleador normalizado'])=='profesional independiente':
@@ -67,54 +128,68 @@ def size_of(a,b):
  return dict(size_estimate=value,size_method=method,size_evidence_type=kind,size_confidence=confidence or 'Indeterminada',size_low=(confidence=='Baja' or uncertain or kind in ['Hipótesis sin verificar','Referencia indirecta']),size_scope=scope,size_reference_date=str(ref) if ref else None,size_evidence=url,size_warning=basis,size_pending=status,size_published_original=published,size_lower=lo,size_upper=hi,size_range=rng)
 
 class Disclosure:
- """Stable cell registry shared by every filter and both display units.
+ """Two-person cells, exact values, grouped remainders and filtered-query guards.
 
- Minimum five distinct graduates; complementary suppression; pairwise comparison
- guard across the entire released count lattice; rounding to base five. No raw
- signatures leave this process. Repeated queries reuse the same protected cell.
+ Reference source/PG views are explicitly released aggregate tables. Narrower
+ cohort/combined-filter versions are blocked when differencing the same metric
+ would isolate one contributor. A blocked partition is withheld as a whole,
+ so its complement cannot reconstruct a suppressed category from the total.
  """
- def __init__(self):self.cells=[];self.index={};self.stats=Counter();self.forced=set()
- def add(self,rows,scalar=None,minimum=K):
-  # Contribution signature includes record presence, even when totals coincide.
-  sig=tuple(sorted((r['uid'],r['gid']) for r in rows));key=(sig,scalar,minimum)
+ def __init__(self):self.cells=[];self.index={};self.stats=Counter();self.context='';self.reference=False;self.partitions=[];self.compositions=[]
+ def add(self,rows,scalar=None,minimum=K,family='total',reference=None):
+  sig=tuple(sorted((r['uid'],r['gid']) for r in rows));key=(family,self.context,sig,scalar,minimum)
   if key in self.index:return self.index[key]
   i=len(self.cells);self.index[key]=i
   people=frozenset(g for _,g in sig if g)
-  self.cells.append({'sig':sig,'people':people,'n':len(sig),'scalar':scalar,'min':minimum,'blocked':bool(sig) and len(people)<minimum})
+  self.cells.append({'sig':sig,'people':people,'n':len(sig),'scalar':scalar,'min':minimum,'blocked':bool(sig) and len(people)<minimum,'family':family,'context':self.context,'reference':self.reference if reference is None else reference})
   return i
  def protect(self):
-  # Catch narrow complements between cells, including aggregate/cohort,
-  # source switches, subgroup clicks, postgraduate and Others exclusions.
-  # Prefer the unfiltered reference views registered first. If a narrower view
-  # would disclose a small difference, suppress that view, not its safe parent.
+  families=defaultdict(list)
   for c in self.cells:
-   if c['sig'] in self.forced:c['blocked']=True
-  signatures=list(dict.fromkeys(c['sig'] for c in self.cells if not c['blocked']))
-  record_people={u:g for sig in signatures for u,g in sig};rs=[frozenset(u for u,g in sig) for sig in signatures]
-  blocked=set();accepted=[]
-  for i,a in enumerate(rs):
-   for j in accepted:
-    b=rs[j];difference=a^b
-    if not difference:continue
-    people={record_people[u] for u in difference if record_people[u]}
-    if len(people)<K:
-     blocked.add(signatures[i]);break
-   if signatures[i] not in blocked:accepted.append(i)
-  for c in self.cells:
-   if c['sig'] in blocked:c['blocked']=True
-   if not c['sig']:c['blocked']=False
-   self.stats['suppressed' if c['blocked'] else 'released']+=1
- def complementary(self,groups):
-  hidden={r['gid'] for rs in groups.values() if len({r['gid'] for r in rs if r['gid']})<K for r in rs if r['gid']}
-  visible=[rs for rs in groups.values() if len({r['gid'] for r in rs if r['gid']})>=K]
-  if 0<len(hidden)<K and visible:
-   extra=min(visible,key=lambda rs:len(rs))
-   self.forced.add(tuple(sorted((r['uid'],r['gid']) for r in extra)))
+   c['records']=frozenset(u for u,g in c['sig']);families[c['family']].append(c)
+  for family,cells in families.items():
+   accepted=[]
+   for c in sorted(cells,key=lambda c:(not c['reference'],len(c['context']))):
+    if c['blocked']:continue
+    if not c['reference']:
+     for prior in accepted:
+      difference=c['records']^prior['records']
+      if difference:
+       owners=dict(c['sig']+prior['sig']);people={owners[u] for u in difference if owners[u]}
+       if len(people)<K:c['blocked']=True;break
+    if not c['blocked']:accepted.append(c)
+  for indices in self.partitions:
+   if any(self.cells[i]['blocked'] for i in indices):
+    for i in indices:self.cells[i]['blocked']=True
+  for components,statistic in self.compositions:
+   if any(self.cells[i]['blocked'] for i in components):
+    for i in components:self.cells[i]['blocked']=True
+    if statistic is not None:self.cells[statistic]['blocked']=True
+  for c in self.cells:self.stats['suppressed' if c['blocked'] else 'released']+=1
  def release(self,i):
   c=self.cells[i]
   if c['blocked']:return None
-  if c['scalar'] is not None:return rounded(c['scalar'],100) if c['scalar']>=100 else round(c['scalar'],1)
-  return {'exp':rounded(c['n']),'grad':rounded(len(c['people']))}
+  if c['scalar'] is not None:return c['scalar']
+  return {'exp':c['n'],'grad':len(c['people'])}
+
+def partition(rows,field,disclosure,family,show_unknown=True,ensure=None):
+ """Exhaustive disjoint record partition; unique graduate memberships may overlap."""
+ groups=defaultdict(list);small=[];grouped_label=GROUPED.get(field,'Otros grupos agrupados');small_labels=set()
+ for r in rows:
+  label=UNKNOWN if is_unknown(r.get(field)) else str(r[field])
+  if field=='employer_name' and (r.get('employer_personal') or token(label)=='profesional independiente'):small.append(r)
+  else:groups[label].append(r)
+ for label in list(groups):
+  if len({r['gid'] for r in groups[label] if r['gid']})<K and groups[label]:small.extend(groups.pop(label));small_labels.add(label)
+ for label in ensure or []:
+  if label not in small_labels:groups.setdefault(label,[])
+ if small:groups[grouped_label]=small
+ indices=[];result=[]
+ for label,rs in sorted(groups.items()):
+  i=disclosure.add(rs,family=family+':'+label);indices.append(i)
+  if show_unknown or label!=UNKNOWN:result.append({'label':label,'value':{'$':i},'grouped':label==grouped_label})
+ disclosure.partitions.append(indices)
+ return result
 
 def main():
  ap=argparse.ArgumentParser(description=__doc__)
@@ -136,7 +211,7 @@ def main():
   for r in items:
    eid=r['employment_id'] if src=='LinkedIn' else r['episode_id'];m=mapping[src,eid];a=registry[m['employer_key']]
    area=r['sector'] if src=='LinkedIn' else r['category'];assert area==m['Área profesional (original)'],('Professional classification drift',eid)
-   rows.append(dict(r,**{k:v for k,v in a.items() if k not in ['audit_original','size_audit_original']},uid=src+':'+eid,gid=r['graduate_id'],source=src,cohort=cohort(gmap[r['graduate_id']]['graduation_date']),professional_area=area or UNKNOWN,title_normalized=clean(r['title']) if src=='LinkedIn' else UNKNOWN,country=r.get('country_normalized') or UNKNOWN,city=r.get('city_normalized') or UNKNOWN,postgraduate=r.get('exclude_postgraduate_scenario',False),position=r.get('position_order'),area_basis='Cargo documentado' if src=='LinkedIn' else 'Proxy de actividad del empleador; cargo no observado'))
+   rows.append(dict(r,**{k:v for k,v in a.items() if k not in ['audit_original','size_audit_original']},uid=src+':'+eid,gid=r['graduate_id'],source=src,cohort=cohort(gmap[r['graduate_id']]['graduation_date']),professional_area=area or UNKNOWN,title_normalized=normalize_title(r['title']) if src=='LinkedIn' else UNKNOWN,country=r.get('country_normalized') or UNKNOWN,city=r.get('city_normalized') or UNKNOWN,postgraduate=r.get('exclude_postgraduate_scenario',False),position=r.get('position_order'),area_basis='Cargo documentado' if src=='LinkedIn' else 'Proxy de actividad del empleador; cargo no observado'))
  li=[r for r in rows if r['source']=='LinkedIn'];counts=Counter(r['gid'] for r in li);fixed={g for g,n in counts.items() if n in [5,6]}
  for r in rows:r['fixed_sample']=r['gid'] in fixed
  assert len(jobs)==323 and len(episodes)==57 and len(rows)==380
@@ -150,41 +225,34 @@ def main():
   rs=unpack(sheet)
   for r in rs:
    m=mapping.get(('LinkedIn',r['employment_id']));a=registry[m['employer_key']] if m else {}
-   r.update({k:a.get(k) for k in extra});r['professional_area']=r['sector'];r['title_normalized']=clean(r['title'])
+   r.update({k:a.get(k) for k in extra});r['professional_area']=r['sector'];r['title_normalized']=normalize_title(r['title'])
   sheet.update(tab(rs,sheet['headers']+[h for h in extra if h not in sheet['headers']]))
  review['sheets'].append(dict(name='Employer audit',**tab([{k:(json.dumps(v,ensure_ascii=False) if isinstance(v,dict) else v) for k,v in a.items()} for a in registry.values()])))
  write(out/'review_enriched.json',review)
  with (out/'employer_sizes_pending.csv').open('w',encoding='utf-8-sig',newline='') as f:
   fields=['employer_key','employer_name','size_estimate','size_method','size_evidence_type','size_confidence','size_low','size_scope','size_reference_date','size_evidence','size_warning','size_pending'];w=csv.DictWriter(f,fieldnames=fields,extrasaction='ignore');w.writeheader();w.writerows(registry.values())
- # Normalize title typography only. No semantic translations or area reassignment.
+ # Display-only equivalence mapping. Original title and area remain unchanged.
  title_labels={}
  for r in li:title_labels.setdefault(token(r['title_normalized']),r['title_normalized'])
  for r in li:r['title_normalized']=title_labels[token(r['title_normalized'])]
  disclosure=Disclosure();views={};exact={};private_long=[]
- def cell(rs):return {'$':disclosure.add(rs)}
- def scalar(rs,v):return {'$':disclosure.add(rs,v,10)} if len({r['gid'] for r in rs})>=10 else None
- def distribution(rs,field,unknown=True):
-  groups=defaultdict(list)
-  for r in rs:
-   label=r[field] or UNKNOWN
-   if not unknown and is_unknown(label):continue
-   if field=='employer_name' and (r['employer_personal'] or token(label)=='profesional independiente'):label='Empleadores reservados o independientes'
-   groups[label].append(r)
-  # Use the same label universe for all queries; do not publish rare category names.
-  disclosure.complementary(groups)
-  return [{'label':label,'value':cell(v)} for label,v in sorted(groups.items()) if len({r['gid'] for r in v})>=K or label==UNKNOWN]
+ def cell(rs,family='total',reference=None):return {'$':disclosure.add(rs,family=family,reference=reference)}
+ def scalar(rs,v,family):return {'$':disclosure.add(rs,v,family=family)} if rs else None
+ def distribution(rs,field,unknown=True,family=None):return partition(rs,field,disclosure,family or field,unknown,PROFESSIONAL_AREAS if field=='professional_area' else None)
  def subset(co,comf,pg,other):return [r for r in rows if (co=='todas' or r['cohort']==co) and (comf or r['source']=='LinkedIn') and not(pg and r['postgraduate']) and not(other and r['professional_area']=='Otros')]
  for co,comf,pg,other,nd in product(COHORTS,[0,1],[0,1],[0,1],[0,1]):
   key='|'.join(map(str,[co,comf,pg,other,nd]));rs=subset(co,comf,pg,other);linkedin=[r for r in rs if r['source']=='LinkedIn']
-  v={'total':cell(rs),'linkedin':cell(linkedin),'comfama':cell([r for r in rs if r['source']=='Comfama']),'economic_sector':distribution(rs,'economic_sector',nd),'professional_area':distribution(rs,'professional_area',nd),'employers':distribution(rs,'employer_name',nd),'titles':distribution(linkedin,'title_normalized',nd),'countries':distribution(rs,'country',nd),'cities':distribution(rs,'city',nd),'details':{},'longitudinal':{}}
+  disclosure.context=key;disclosure.reference=co=='todas' and not other
+  v={'total':cell(rs),'linkedin':cell(linkedin,'linkedin_total'),'comfama':cell([r for r in rs if r['source']=='Comfama'],'comfama_total'),'economic_sector':distribution(rs,'economic_sector',nd),'professional_area':distribution(rs,'professional_area',nd),'employers':distribution(rs,'employer_name',nd),'titles':distribution(linkedin,'title_normalized',nd),'countries':distribution(rs,'country',nd),'cities':distribution(rs,'city',nd),'details':{},'longitudinal':{}}
   for dim in ['economic_sector','professional_area']:
    v['details'][dim]={}
    for item in v[dim]:
-    group=[r for r in rs if r[dim]==item['label']];v['details'][dim][item['label']]={'employers':distribution(group,'employer_name',nd),'titles':distribution([r for r in group if r['source']=='LinkedIn'],'title_normalized',nd)}
+    if item.get('grouped'):continue
+    group=[r for r in rs if (UNKNOWN if is_unknown(r[dim]) else r[dim])==item['label']];title_rows=[r for r in group if r['source']=='LinkedIn'];v['details'][dim][item['label']]={'employers':distribution(group,'employer_name',nd,f'{dim}:{item["label"]}:employers'),'titles':distribution(title_rows,'title_normalized',nd,f'{dim}:{item["label"]}:titles'),'linkedin_total':cell(title_rows,f'{dim}:{item["label"]}:titles_total')}
   # First and latest refer to immutable original selected positions.
   for which,positions in [('first',{g:1 for g in counts}),('last',dict(counts))]:
    selected=[r for r in linkedin if r['position']==positions[r['gid']]]
-   v[which]={'total':cell(selected),'sectors':distribution(selected,'economic_sector',nd),'areas':distribution(selected,'professional_area',nd)}
+   v[which]={'total':cell(selected,which+'_total'),'sectors':distribution(selected,'economic_sector',nd,which+'_economic_sector'),'areas':distribution(selected,'professional_area',nd,which+'_professional_area')}
   # Counts of original experiences are computed before employment filters.
   originals=[r for r in li if co=='todas' or r['cohort']==co]
   represented={r['gid'] for r in originals}
@@ -200,15 +268,20 @@ def main():
    duration.append(dict(r,duration_bucket=bucket))
   v['duration']=distribution(duration,'duration_bucket',nd)
   known=[r for r in rs if r['country']!=UNKNOWN];foreign=[r for r in known if r['country']!='Colombia']
-  v['international']={'known':cell(known),'foreign':cell(foreign),'unknown':cell([r for r in rs if r['country']==UNKNOWN])}
+  v['international']={'known':cell(known,'international:known'),'foreign':cell(foreign,'international:foreign'),'unknown':cell([r for r in rs if r['country']==UNKNOWN],'international:unknown')}
   for balanced,low in product([0,1],[0,1]):
+   disclosure.context=key+f'|{balanced}|{low}'
+   disclosure.reference=co=='todas' and not pg and not other and not low
    seq=[]
    for pos in range(1,7):
     eligible=[r for r in originals if r['position']==pos and (not balanced or r['gid'] in fixed)]
     selected=[r for r in linkedin if r['position']==pos and (not balanced or r['gid'] in fixed)]
     sized=[r for r in selected if r['size_estimate'] is not None and not(low and r['size_low'])]
     means=mean(r['size_estimate'] for r in sized) if sized else None;med=median(r['size_estimate'] for r in sized) if sized else None
-    seq.append({'position':pos,'eligible':cell(eligible),'retained':cell(selected),'usable':cell(sized),'mean':scalar(sized,means) if sized else None,'median':scalar(sized,med) if sized else None,'sectors':distribution(selected,'economic_sector',nd),'areas':distribution(selected,'professional_area',nd)})
+    missing=[r for r in selected if r['size_estimate'] is None];low_excluded=[r for r in selected if r['size_estimate'] is not None and low and r['size_low']];filtered=[r for r in eligible if r['uid'] not in {s['uid'] for s in selected}]
+    prefix=f'position:{pos}'
+    row={'position':pos,'eligible':cell(eligible,prefix+':eligible',reference=co=='todas'),'retained':cell(selected,prefix+':retained'),'usable':cell(sized,prefix+':usable'),'missing_size':cell(missing,prefix+':missing'),'excluded_by_filters':cell(filtered,prefix+':excluded'),'excluded_low_size':cell(low_excluded,prefix+':low'),'mean':scalar(sized,means,prefix+':mean'),'mean_status':'available' if sized else 'missing','sectors':distribution(selected,'economic_sector',nd,prefix+':sectors'),'areas':distribution(selected,'professional_area',nd,prefix+':areas')}
+    disclosure.compositions.append(([row[f]['$'] for f in ['usable','missing_size','excluded_low_size']],row['mean']['$'] if row['mean'] else None));seq.append(row)
     if not comf and not nd:private_long.append(dict(cohort=co,exclude_postgraduate=pg,exclude_other=other,fixed_sample=balanced,exclude_low_size=low,position=pos,eligible=len(eligible),retained=len(selected),usable=len(sized),coverage=len(sized)/len(eligible) if eligible else None,mean=means,median=med))
    v['longitudinal'][f'{balanced}|{low}']=seq
   views[key]=v
@@ -216,27 +289,39 @@ def main():
  # Practices and M0 obey only compatible filters: cohort; PG for continuity.
  pt=unpack(practice['tables']['Practice Trace']);pairs=unpack(practice['tables']['Continuity']);m0=unpack(practice['tables']['M0 Trace']);formation={}
  for co,pg in product(COHORTS,[0,1]):
+  disclosure.context=f'formation|{co}|{pg}';disclosure.reference=co=='todas'
   chosen=[r for r in pt if r['Included in aggregates'] and (co=='todas' or r['Cohort']==co)]
   pr=[dict(uid=r['Practice record id'],gid=r['Graduate id'] or None,entity=r['Entity canonical'],country=r['Country reviewed'] or r['Country group'] or UNKNOWN,city=r['City reviewed'] or r['City (original)'] or UNKNOWN,scope=r['Geographic scope']) for r in chosen]
   cv=[]
   for scope in ['All entities','EAFIT','Other entities']:
    group=[r for r in chosen if scope=='All entities' or (('eafit' in token(r['Entity canonical']))==(scope=='EAFIT'))]
-   people={r['Graduate id'] for r in group if r['Graduate id']};in_final={r['gid'] for r in li if not(pg and r['postgraduate'])};accepted=[r for r in pairs if r['Accepted all'] and not(pg and r['Exclude postgraduate scenario']) and (co=='todas' or r['Cohort']==co) and (scope=='All entities' or r['Entity scope']==scope)]
+   # Documentary coverage denominators belong to the closed original Final;
+   # the PG sensitivity removes employment links, not the baseline population.
+   people={r['Graduate id'] for r in group if r['Graduate id']};in_final={r['gid'] for r in li};accepted=[r for r in pairs if r['Accepted all'] and not(pg and r['Exclude postgraduate scenario']) and (co=='todas' or r['Cohort']==co) and (scope=='All entities' or r['Entity scope']==scope)]
    def person_rows(ids,prefix):return [dict(uid='person:'+g,gid=g) for g in ids]
-   cv.append({'scope':scope,'practice_graduates':cell(person_rows(people,'practice')),'jointly_observed':cell(person_rows(people&in_final,'joint')),'graduates':cell(person_rows({r['Graduate id'] for r in accepted},'continuity')),'matches':cell([dict(uid=r['Employment id'],gid=r['Graduate id']) for r in accepted])})
+   cv.append({'scope':scope,'practice_graduates':cell(person_rows(people,'practice'),'continuity:'+scope+':practice'),'jointly_observed':cell(person_rows(people&in_final,'joint'),'continuity:'+scope+':joint'),'graduates':cell(person_rows({r['Graduate id'] for r in accepted},'continuity'),'continuity:'+scope+':people'),'matches':cell([dict(uid=r['Employment id'],gid=r['Graduate id']) for r in accepted],'continuity:'+scope+':matches')})
   chosen_m0=[r for r in m0 if r['Selected latest for graduate'] and (co=='todas' or r['Cohort']==co)]
   mr=[dict(uid='m0:'+str(r['Graduate ID']),gid=str(r['Graduate ID']),paid=r['Paid work status'],offer=r['Offer status'],accepted=r['Acceptance status'],working=r['Practice-entity work status'],timing=r['Response timing vs graduation']) for r in chosen_m0]
   # Apply the same all-cohort offer coverage rule already closed in the source:
   # early-cohort form did not establish offer-item comparability.
   for rr in mr:
    if cohort(gmap[rr['gid']]['graduation_date'])==COHORTS[1]:rr['offer']='Missing';rr['accepted']='Missing';rr['working']='Missing'
-  formation[f'{co}|{pg}']={'total':cell(pr),'entities':distribution_generic(pr,'entity',disclosure),'countries':distribution_generic(pr,'country',disclosure),'cities':distribution_generic(pr,'city',disclosure),'geography':distribution_generic(pr,'scope',disclosure),'continuity':cv,'m0':{'respondents':cell(mr),'paid':distribution_generic(mr,'paid',disclosure),'offer':distribution_generic(mr,'offer',disclosure),'accepted':distribution_generic(mr,'accepted',disclosure),'working':distribution_generic(mr,'working',disclosure),'timing':distribution_generic(mr,'timing',disclosure)}}
+  formation[f'{co}|{pg}']={'total':cell(pr,'practice_total'),'entities':partition(pr,'entity',disclosure,'practice:entity'),'countries':partition(pr,'country',disclosure,'practice:country'),'cities':partition(pr,'city',disclosure,'practice:city'),'geography':partition(pr,'scope',disclosure,'practice:scope'),'continuity':cv,'m0':{'respondents':cell(mr,'m0:total'),**{field:partition(mr,field,disclosure,'m0:'+field) for field in ['paid','offer','accepted','working','timing']}}}
  # Coverage does not change when a recorded episode is excluded by a chart filter.
- coverage={}
+ coverage={};approved={r['graduate_id']:r['candidate_id'] for r in candidates if r['identity_status']=='approved'};selected_gids=set(counts)
+ experience_by_candidate=defaultdict(list)
+ for r in unpack(next(s for s in review['sheets'] if s['name']=='Experiences')):experience_by_candidate[r['graduate_id'],r['candidate_id']].append(r)
  cov=unpack(com['tables']['Coverage'])
  for co in COHORTS:
-  cc=[dict(uid='coverage:'+r['graduate_id'],gid=r['graduate_id'],group=r['coverage_group']) for r in cov if co=='todas' or cohort(gmap[r['graduate_id']]['graduation_date'])==co]
-  coverage[co]=distribution_generic(cc,'group',disclosure)
+  disclosure.context='coverage|'+co;disclosure.reference=co=='todas'
+  cc=[dict(uid='coverage:'+r['graduate_id'],gid=r['graduate_id'],group=r['coverage_group'],comfama=bool(r['comfama'])) for r in cov if co=='todas' or cohort(gmap[r['graduate_id']]['graduation_date'])==co]
+  absence=[]
+  for r in cc:
+   if r['gid'] in selected_gids:continue
+   ex=experience_by_candidate[r['gid'],approved.get(r['gid'],'')]
+   reason='Sin identidad aprobada en LinkedIn' if r['gid'] not in approved else 'Sin experiencias guardadas' if not ex else 'Solo inicios anteriores al mes de grado' if all(e['postgraduation_status']=='excluded_start_before_graduation_month' for e in ex) else 'Otras restricciones de elegibilidad o cobertura'
+   absence.append(dict(r,reason=reason))
+  coverage[co]={'total':cell(cc,'coverage:total'),'combinations':partition(cc,'group',disclosure,'coverage:group',ensure=['Both sources','LinkedIn only','Comfama only','Neither source']),'absence_total':cell(absence,'absence:total'),'absence':partition(absence,'reason',disclosure,'coverage:absence')}
  write(out/'exact_filter_aggregates.json',exact);write(out/'longitudinal_exact.json',private_long)
  print('Protecting public filter lattice...',flush=True);disclosure.protect()
  def resolve(x):
@@ -245,24 +330,31 @@ def main():
    return {k:resolve(v) for k,v in x.items()}
   if isinstance(x,list):return [resolve(v) for v in x]
   return x
- public=resolve({'metadata':{'date':'2026-11-24','population':193,'approved_identities':157,'linkedin_graduates':114,'combined_graduates':144,'linkedin_experiences':323,'comfama_episodes':57,'combined_observations':380,'postgraduate_marks':19,'practices':211,'privacy_k':K,'count_rounding':5,'size_minimum':10,'counts_approximate':True,'source_commit':'a0c276356c3852c2f6cf971ed4f52fa2d6aa69f7'},'cohorts':COHORTS,'palette':PALETTE,'views':views,'formation':formation,'coverage':coverage})
- # Remove labels and empty drilldown objects if disclosure blocked every count.
- def scrub(x):
-  if isinstance(x,list):return [scrub(v) for v in x if not(isinstance(v,dict) and 'value' in v and v['value'] is None)]
-  if isinstance(x,dict):return {k:scrub(v) for k,v in x.items()}
-  return x
- public=scrub(public)
+ public=resolve({'metadata':{'population':193,'approved_identities':157,'linkedin_graduates':114,'combined_graduates':144,'linkedin_experiences':323,'comfama_observations':57,'combined_observations':380,'postgraduate_marks':19,'practices':211,'privacy_k':K,'count_rounding':None,'size_minimum':K,'counts_approximate':False,'source_commit':'a0c276356c3852c2f6cf971ed4f52fa2d6aa69f7'},'professional_categories':PROFESSIONAL_AREAS,'cohorts':COHORTS,'views':views,'formation':formation,'coverage':coverage})
  for v in public['views'].values():
   for dim in ['economic_sector','professional_area']:
-   safe={i['label'] for i in v[dim]};v['details'][dim]={k:val for k,val in v['details'][dim].items() if k in safe}
+   safe={i['label'] for i in v[dim] if i['value'] is not None};v['details'][dim]={k:val for k,val in v['details'][dim].items() if k in safe}
+  for sequence in v['longitudinal'].values():
+   for r in sequence:
+    if r['mean_status']=='available' and r['mean'] is None:r['mean_status']='suppressed'
+ labels={'Promedio del tamaño empresarial','Otros grupos agrupados'};neighbors=defaultdict(set)
+ def collect(x):
+  if isinstance(x,dict):
+   if 'label' in x:labels.add(x['label'])
+   for value in x.values():collect(value)
+  elif isinstance(x,list):
+   peers={v['label'] for v in x if isinstance(v,dict) and 'label' in v}
+   for label in peers:neighbors[label].update(peers-{label})
+   for value in x:collect(value)
+ collect(public)
+ previous_payload=read(args.out) if args.out.exists() else {}
+ previous=previous_payload.get('colors',{}) if previous_payload.get('color_registry_version')==3 else {}
+ priority=PROFESSIONAL_AREAS+[i['label'] for i in public['views']['todas|0|0|0|1']['economic_sector']]+['No determinado','Otros grupos agrupados','Promedio del tamaño empresarial']
+ public['colors']=categorical_colors(labels,previous,priority,neighbors);public['color_registry_version']=3
  write(args.out,public)
- write(out/'disclosure_report.json',{'k':K,'count_rounding':5,'minimum_size_statistic_graduates':10,'cells':len(disclosure.cells),'unique_signatures':len({c['sig'] for c in disclosure.cells}),'decisions':dict(disclosure.stats),'notes':['Suppression is shared by every occurrence of the same signature, including unit switches.','Pairs differing in fewer than five contributors are suppressed across the complete precomputed query lattice.','No small category labels or person employer names are serialized.','Counts are rounded to base five; percentages are derived only from released rounded values.','Exact institutional controls are explicitly authorized baseline totals.','Statistical disclosure controls reduce risk; they do not establish formal differential privacy.']})
- write(out/'disclosure_signatures_private.json',[{'records':c['sig'],'blocked':c['blocked'],'minimum':c['min'],'scalar':c['scalar']} for c in disclosure.cells])
+ write(out/'disclosure_report.json',{'k':K,'count_rounding':None,'minimum_size_statistic_graduates':K,'cells':len(disclosure.cells),'unique_signatures':len({c['sig'] for c in disclosure.cells}),'decisions':dict(disclosure.stats),'notes':['Named categories require two distinct graduates. Smaller groups and personal employers are pooled without dropping observations.','The four all-cohort source/postgraduate reference scenarios are released exactly when support permits.','Narrower filter comparisons in the same metric family are withheld when their difference isolates one known contributor.','If any component is suppressed, the whole distribution or size composition is withheld to avoid subtraction.','Reference tables are aggregate releases, not a guarantee of formal differential privacy.']})
+ write(out/'disclosure_signatures_private.json',[{'records':c['sig'],'blocked':c['blocked'],'minimum':c['min'],'scalar':c['scalar'],'family':c['family'],'context':c['context'],'reference':c['reference']} for c in disclosure.cells])
+ write(out/'disclosure_partitions_private.json',{'partitions':disclosure.partitions,'size_compositions':disclosure.compositions})
  print(json.dumps({'records':len(rows),'employers':len(registry),'size_missing':sum(a['size_estimate'] is None for a in registry.values()),'release_cells':dict(disclosure.stats),'output':str(args.out)},ensure_ascii=False))
 
-def distribution_generic(rows,field,disclosure):
- groups=defaultdict(list)
- for r in rows:groups[r[field] or UNKNOWN].append(r)
- disclosure.complementary(groups)
- return [{'label':label,'value':{'$':disclosure.add(rs)}} for label,rs in sorted(groups.items()) if len({r['gid'] for r in rs if r['gid']})>=K or label==UNKNOWN]
 if __name__=='__main__':main()

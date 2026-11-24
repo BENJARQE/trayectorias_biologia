@@ -70,7 +70,7 @@
       const p = TM.svg("path", {
         d: arco(c, c, r0, r1, ang, a1), fill: it.color, "fill-opacity": it.opacidad == null ? 1 : it.opacidad,
         stroke: "var(--panel)", "stroke-width": 2, class: "rebanada" + (op.seleccionado && op.seleccionado !== it.id ? " apagada" : ""),
-        tabindex: 0, role: "button", "aria-label": `${it.etiqueta}: ${TM.fmt(it.valor)} (${TM.pct(it.valor, total)})`,
+        tabindex: 0, role: "button", "data-category": it.id, "aria-label": `${it.etiqueta}: ${TM.fmt(it.valor)} (${TM.pct(it.valor, total)})`,
       }, svg);
       p.addEventListener("mousemove", (e) => TM.mostrarTip(op.tip ? op.tip(it, total) : `<strong>${TM.esc(it.etiqueta)}</strong><br>${TM.fmt(it.valor)} · ${TM.pct(it.valor, total)}`, e));
       p.addEventListener("mouseleave", TM.ocultarTip);
@@ -97,7 +97,7 @@
       const pista = TM.el("div", { className: "pista" }, fila);
       const r = TM.el("div", { className: "relleno" }, pista);
       r.style.width = (100 * f.valor) / max + "%";
-      r.style.background = color;
+      r.style.background = f.color || color;
       TM.el("div", { className: "num", textContent: TM.fmt(f.valor) }, fila);
       fila.addEventListener("mousemove", (e) => TM.mostrarTip(f.tip, e));
       fila.addEventListener("mouseleave", TM.ocultarTip);

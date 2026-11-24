@@ -10,4 +10,10 @@
 .line-chart{display:block;width:100%;height:auto;max-height:340px}.line-chart text{fill:var(--tenue);font-size:12px}.line-chart .axis{stroke:var(--borde)}
 .metodo{max-width:1000px;margin:auto}.metodo p,.metodo li{max-width:90ch}.metodo h2{margin-top:28px;font-size:1.2rem}.table-note{font-size:.82rem;color:var(--tenue);margin:12px 0 0}
 button:disabled{opacity:.55;cursor:default}.tab:focus-visible{outline-offset:3px}
+.fila-barra .num{white-space:pre-line}.fila-barra[role="button"]{cursor:pointer}
+:root{--plot-1:#5b8dfa;--plot-2:#2cc79a;--plot-3:#e167f0;--plot-4:#fb8a4a}
+@media(prefers-color-scheme:light){:root:not([data-theme="dark"]){--plot-1:#2563eb;--plot-2:#0f9d74;--plot-3:#c026d3;--plot-4:#ea580c}}
+:root[data-theme="light"]{--plot-1:#2563eb;--plot-2:#0f9d74;--plot-3:#c026d3;--plot-4:#ea580c}
+.mini circle{stroke-opacity:1}.mini circle:nth-child(1){stroke:var(--plot-1)}.mini circle:nth-child(2){stroke:var(--plot-2)}.mini circle:nth-child(3){stroke:var(--plot-3)}.mini circle:nth-child(4){stroke:var(--plot-4)}
+.mini rect:nth-child(1){fill:var(--plot-1)}.mini rect:nth-child(2){fill:var(--plot-2)}.mini rect:nth-child(3){fill:var(--plot-3)}.mini rect:nth-child(4){fill:var(--plot-4)}
 @media(max-width:600px){.tabs{gap:5px}.tab{padding:7px 10px}.grupo-ctrl{width:100%}.controles{gap:12px}.fila-barra{grid-template-columns:minmax(100px,45%) 1fr 54px;gap:6px}.tarjeta-g{padding:14px}th,td{padding:8px}.long-title{display:block}.long-title span{display:block;margin-top:4px}}
