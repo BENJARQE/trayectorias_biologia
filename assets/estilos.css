@@ -1,0 +1,119 @@
+/* Estilos compartidos — Trayectorias de graduados de Música (EAFIT). Tema claro/oscuro automático. */
+:root {
+  color-scheme: light dark;
+  --bg: #0f1218;
+  --panel: #171b25;
+  --panel-2: #1f2430;
+  --texto: #eceef4;
+  --tenue: #9aa3b8;
+  --borde: #2b3142;
+  --acento: #70B77E;
+  --acento-texto: #1a1204;
+  --sombra: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f6f5f1;
+    --panel: #ffffff;
+    --panel-2: #efede6;
+    --texto: #1d2030;
+    --tenue: #5d6478;
+    --borde: #dedbd0;
+    --acento: #237A43;
+    --acento-texto: #ffffff;
+    --sombra: 0 6px 18px rgba(40, 30, 10, 0.12);
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--texto);
+  line-height: 1.45;
+}
+a { color: var(--acento); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+header.cab { padding: 22px 28px 14px; border-bottom: 1px solid var(--borde); }
+.migas { font-size: 0.8rem; margin-bottom: 8px; }
+.migas a { text-decoration: none; color: var(--tenue); }
+.migas a:hover { color: var(--acento); }
+h1 { margin: 0 0 4px; font-size: 1.45rem; letter-spacing: -0.01em; }
+.subtitulo { color: var(--tenue); font-size: 0.92rem; max-width: 90ch; }
+.resumen { margin-top: 8px; font-size: 0.84rem; color: var(--tenue); }
+.resumen strong { color: var(--texto); }
+
+.controles { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; margin-top: 16px; }
+.grupo-ctrl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.grupo-ctrl > .rotulo { font-size: 0.78rem; color: var(--tenue); text-transform: uppercase; letter-spacing: 0.06em; }
+.chip {
+  background: var(--panel-2); border: 1px solid var(--borde); color: var(--texto);
+  padding: 6px 13px; border-radius: 999px; cursor: pointer; font-size: 0.84rem;
+}
+.chip:hover { border-color: var(--acento); }
+.chip[aria-pressed="true"], .chip.activo { background: var(--acento); color: var(--acento-texto); border-color: var(--acento); font-weight: 600; }
+.tabs { display: flex; gap: 6px; margin-top: 16px; }
+.tab { background: var(--panel-2); border: 1px solid var(--borde); color: var(--tenue); padding: 8px 16px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 0.88rem; }
+.tab.activo { background: var(--acento); color: var(--acento-texto); border-color: var(--acento); font-weight: 600; }
+label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 0.84rem; color: var(--tenue); cursor: pointer; }
+select { background: var(--panel-2); color: var(--texto); border: 1px solid var(--borde); border-radius: 8px; padding: 5px 8px; font: inherit; font-size: 0.84rem; }
+
+main { padding: 20px 28px 48px; }
+.rejilla-2 { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 960px) { .rejilla-2 { grid-template-columns: 1fr; } header.cab, main { padding-left: 16px; padding-right: 16px; } }
+.tarjeta-g { background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 18px; }
+.tarjeta-g h2 { margin: 0 0 2px; font-size: 1.05rem; }
+.tarjeta-g .sub { color: var(--tenue); font-size: 0.82rem; margin-bottom: 12px; }
+
+/* gráficos */
+.donut-caja { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; justify-content: center; }
+.donut-caja svg { flex: none; max-width: 100%; height: auto; }
+.rebanada { cursor: pointer; transition: opacity 0.15s, transform 0.15s; transform-origin: center; }
+.rebanada.apagada { opacity: 0.38; }
+.rebanada:hover { opacity: 1; }
+.centro-valor { font-size: 30px; font-weight: 700; fill: var(--texto); text-anchor: middle; }
+.centro-rotulo { font-size: 12px; fill: var(--tenue); text-anchor: middle; }
+.leyenda { list-style: none; margin: 0; padding: 0; min-width: 210px; flex: 1 1 240px; }
+.leyenda li { margin: 0; }
+.leyenda button {
+  display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; align-items: center; width: 100%;
+  background: none; border: 1px solid transparent; border-radius: 8px; padding: 6px 8px; cursor: pointer; text-align: left; font-size: 0.86rem;
+}
+.leyenda button:hover { background: var(--panel-2); }
+.leyenda button.sel { background: var(--panel-2); border-color: var(--borde); font-weight: 600; }
+.punto { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.leyenda .val { color: var(--tenue); font-variant-numeric: tabular-nums; font-size: 0.82rem; }
+
+.fila-barra { display: grid; grid-template-columns: minmax(120px, 42%) 1fr 64px; gap: 10px; align-items: center; padding: 5px 0; font-size: 0.86rem; }
+.fila-barra .nom { overflow-wrap: anywhere; }
+.fila-barra .pista { background: var(--panel-2); border-radius: 6px; height: 16px; overflow: hidden; }
+.fila-barra .relleno { height: 100%; border-radius: 6px; min-width: 3px; transition: width 0.25s; }
+.fila-barra .num { text-align: right; color: var(--tenue); font-variant-numeric: tabular-nums; }
+.fila-barra.btn { cursor: pointer; background: none; border: 0; width: 100%; text-align: left; border-radius: 8px; padding: 6px 8px; }
+.fila-barra.btn:hover, .fila-barra.btn.sel { background: var(--panel-2); }
+.lista-scroll { max-height: 560px; overflow-y: auto; padding-right: 4px; }
+.nota { color: var(--tenue); font-size: 0.8rem; margin-top: 10px; }
+.cab-panel { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.titulo-panel { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; font-weight: 700; }
+.vacio { color: var(--tenue); font-size: 0.9rem; padding: 14px 0; }
+
+/* cuadrícula de donuts por grupo */
+.rejilla-grupos { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 18px; }
+.mini-donut { background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 16px; }
+.mini-donut h2 { margin: 0 0 2px; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+.mini-donut .sub { color: var(--tenue); font-size: 0.8rem; margin-bottom: 8px; }
+.mini-donut svg { display: block; margin: 0 auto 6px; }
+
+#tooltip {
+  position: fixed; display: none; z-index: 60; pointer-events: none; max-width: 300px;
+  background: var(--panel-2); border: 1px solid var(--borde); color: var(--texto);
+  padding: 8px 12px; border-radius: 8px; font-size: 0.82rem; box-shadow: var(--sombra);
+}
+footer.pie { border-top: 1px solid var(--borde); padding: 18px 28px 30px; font-size: 0.8rem; color: var(--tenue); }
+footer.pie p { margin: 4px 0; max-width: 110ch; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+

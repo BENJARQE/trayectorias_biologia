@@ -1,0 +1,3 @@
+(function(){'use strict';const select=document.getElementById('theme');if(!select)return;select.value=document.documentElement.dataset.theme||'auto';
+if(window.TM)TM.esOscuro=()=>document.documentElement.dataset.theme?document.documentElement.dataset.theme==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;
+select.addEventListener('change',()=>{if(select.value==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=select.value;try{localStorage.setItem('biologia-theme',select.value);}catch(_){}if(window.TM?.redibujar)TM.redibujar();});})();
